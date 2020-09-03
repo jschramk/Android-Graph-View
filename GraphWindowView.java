@@ -72,7 +72,7 @@ public class GraphWindowView extends View {
   protected void onDraw(Canvas canvas) {
 
     // background
-    //canvas.drawColor(Color.rgb(200, 200, 200));
+    //canvas.drawColor(Color.rgb(240, 240, 240));
 
     paint.setColor(Color.BLACK);
 
@@ -161,7 +161,7 @@ public class GraphWindowView extends View {
 
     clearPoints();
 
-    int numPoints = 300;
+    int numPoints = 400;
 
     for (int i = 0; i < numPoints; i++) {
       float x = viewPortX + ((float) i/numPoints) * viewPortWidth;
@@ -214,6 +214,7 @@ public class GraphWindowView extends View {
   public void setFunction(GraphFunction f) {
     this.f = f;
     computePoints();
+    ViewCompat.postInvalidateOnAnimation(GraphWindowView.this);
   }
 
   public interface GraphFunction {
