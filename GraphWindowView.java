@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -36,6 +37,12 @@ public class GraphWindowView extends View {
   private float viewPortY;
   private float viewPortWidth;
   private float viewPortHeight;
+
+  private float gridScale = 1;
+
+  private int minGridLines = 5;
+
+  private int numFunctionPoints = 400;
 
   public GraphWindowView(Context context) {
     super(context);
@@ -68,23 +75,35 @@ public class GraphWindowView extends View {
 
   }
 
+  int gridLineColor = Color.rgb(240, 240, 240);
+
   @Override
   protected void onDraw(Canvas canvas) {
 
     // background
     //canvas.drawColor(Color.rgb(240, 240, 240));
 
-    paint.setColor(Color.BLACK);
+    // grid lines
+    paint.setColor(gridLineColor);
+    for (float x = getFirstLine(viewPortX, gridScale); x <= viewPortX + viewPortWidth; x += gridScale) {
+      canvas.drawLine(getScreenX(x), 0, getScreenX(x), getHeight(), paint);
+    }
 
-    //origin
+    Log.i("VIEWPORT", "first y: " + getFirstLine(viewPortY, gridScale));
+
+    for (float y = getFirstLine(viewPortY, gridScale); y <= viewPortY + viewPortHeight; y += gridScale) {
+      canvas.drawLine(0, getScreenY(y), getWidth(), getScreenY(y), paint);
+    }
+
+    // origin
+    paint.setColor(Color.BLACK);
     canvas.drawLine(getScreenX(0), 0, getScreenX(0), getHeight(), paint);
     canvas.drawLine(0, getScreenY(0), getWidth(), getScreenY(0), paint);
 
-    paint.setColor(Color.BLUE);
-
     // plot
+    paint.setColor(Color.BLUE);
     for (int i = 0; i < points.size() - 1; i++) {
-      canvas.drawLine(getScreenX(points.get(i).x), getScreenY(points.get(i).y), getScreenX(points.get(i+1).x), getScreenY(points.get(i+1).y), paint);
+      canvas.drawLine(getScreenX(points.get(i).x), getScreenY(points.get(i).y), getScreenX(points.get(i + 1).x), getScreenY(points.get(i + 1).y), paint);
     }
 
   }
@@ -103,7 +122,7 @@ public class GraphWindowView extends View {
     public boolean onScaleBegin(ScaleGestureDetector detector) {
 
       initialCursorPropX = detector.getFocusX() / getWidth();
-      initialCursorPropY = detector.getFocusY() / getHeight();
+      initialCursorPropY = 1 - detector.getFocusY() / getHeight();
 
       initialSpan = detector.getCurrentSpan();
       //initialSpanX = detector.getCurrentSpanX();
@@ -126,14 +145,18 @@ public class GraphWindowView extends View {
       //float currentSpanY = detector.getCurrentSpanY();
 
       float scale = initialSpan / currentSpan;
-      //float scaleX = initialSpanX / currentSpanX;
-      //float scaleY = initialSpanY / currentSpanY;
+      //float scaleX = initialSpanX/currentSpanX;
+      //float scaleY = initialSpanY/currentSpanY;
 
       float cursorPropX = detector.getFocusX() / getWidth();
-      float cursorPropY = detector.getFocusY() / getHeight();
+      float cursorPropY = 1 - detector.getFocusY() / getHeight();
+
+      Log.i("VIEWPORT", String.format("screen prop: (%f, %f)", cursorPropX, cursorPropY));
 
       float deltaPropX = cursorPropX - initialCursorPropX;
       float deltaPropY = cursorPropY - initialCursorPropY;
+
+      Log.i("VIEWPORT", String.format("delta screen prop: (%f, %f)", deltaPropX, deltaPropY));
 
       viewPortWidth = scale * initialViewportWidth;
       viewPortHeight = scale * initialViewportHeight;
@@ -141,15 +164,15 @@ public class GraphWindowView extends View {
       viewPortX = initialViewportX - cursorPropX * (viewPortWidth - initialViewportWidth) - deltaPropX * initialViewportWidth;
       viewPortY = initialViewportY - cursorPropY * (viewPortHeight - initialViewportHeight) - deltaPropY * initialViewportHeight;
 
-      if(o != null) {
+      if (o != null) {
         o.onBoundsChanged(getViewportBounds());
       }
 
-      if(f != null) {
-
+      if (f != null) {
         computePoints();
-
       }
+
+      gridScale = getOptimalGridScale(viewPortHeight, minGridLines);
 
       ViewCompat.postInvalidateOnAnimation(GraphWindowView.this);
 
@@ -161,14 +184,27 @@ public class GraphWindowView extends View {
 
     clearPoints();
 
-    int numPoints = 400;
-
-    for (int i = 0; i < numPoints; i++) {
-      float x = viewPortX + ((float) i/numPoints) * viewPortWidth;
+    for (int i = 0; i < numFunctionPoints; i++) {
+      float x = viewPortX + ((float) i / numFunctionPoints) * viewPortWidth;
       addPoint(new PointF(x, f.value(x)));
 
     }
 
+  }
+
+
+  private static float nearestPower(float number, float powerOf) {
+    return (float) Math.pow(powerOf, Math.floor(Math.log(number) / Math.log(powerOf)));
+  }
+
+  private static float getOptimalGridScale(float viewPortWidth, int minGridLines) {
+    return nearestPower(viewPortWidth / minGridLines, 10);
+  }
+
+  private static float getFirstLine(float viewportMin, float divisionWidth) {
+    float sum = viewportMin + divisionWidth;
+
+    return sum - (sum % divisionWidth) - divisionWidth;
   }
 
   private PointF getScreenPoint(PointF actualPoint) {
@@ -180,7 +216,7 @@ public class GraphWindowView extends View {
   }
 
   private float getScreenY(float actualY) {
-    return (actualY - viewPortY) / viewPortHeight * getHeight();
+    return (1 - (actualY - viewPortY) / viewPortHeight) * getHeight();
   }
 
 
@@ -197,6 +233,10 @@ public class GraphWindowView extends View {
 
   public RectF getViewportBounds() {
     return new RectF(viewPortX, viewPortY + viewPortHeight, viewPortX + viewPortWidth, viewPortY);
+  }
+
+  public float getGridScale() {
+    return gridScale;
   }
 
   public interface OnViewportBoundsChangedListener {
